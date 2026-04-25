@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TAREA: Reemplaza este template placeholder con el diseño real del reporte Maestro-Detalle.
+     Usa Jaspersoft Studio para diseñar el layout visualmente.
+
+     Este reporte debe incluir:
+     - Band "title": nombre e información de la categoría (parámetros: CATEGORY_NAME, CATEGORY_DESC)
+     - Band "detail": subreporte embebido (report-detail-sub.jrxml) con los productos
+     - Band "summary": total general del inventario de la categoría
+
+     Parámetros esperados:
+       - CATEGORY_ID (Integer): ID de la categoría a reportar
+       - CATEGORY_NAME (String): nombre de la categoría
+       - CATEGORY_DESC (String): descripción de la categoría
+       - SUBREPORT_DIR (String): ruta al directorio de reportes (para cargar el subreporte)
+
+     Datasource: lista de productos de la categoría (JRBeanCollectionDataSource<Product>)
+-->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports
+                http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="report-master-detail"
+              pageWidth="595" pageHeight="842"
+              columnWidth="555" leftMargin="20" rightMargin="20"
+              topMargin="20" bottomMargin="20">
+
+  <parameter name="CATEGORY_ID" class="java.lang.Integer"/>
+  <parameter name="CATEGORY_NAME" class="java.lang.String"/>
+  <parameter name="CATEGORY_DESC" class="java.lang.String"/>
+  <parameter name="SUBREPORT_DIR" class="java.lang.String" isForPrompting="false">
+    <defaultValueExpression><![CDATA[""]]></defaultValueExpression>
+  </parameter>
+
+  <!-- TODO: Diseña el layout completo aquí -->
+  <title>
+    <band height="60">
+      <staticText>
+        <reportElement x="0" y="10" width="555" height="40"/>
+        <textElement>
+          <font size="16" isBold="true"/>
+        </textElement>
+        <text><![CDATA[PLACEHOLDER: Reemplaza este template con el diseño real del Reporte Maestro-Detalle]]></text>
+      </staticText>
+    </band>
+  </title>
+
+  <detail>
+    <band height="20">
+      <staticText>
+        <reportElement x="0" y="0" width="555" height="20"/>
+        <text><![CDATA[Detalle de productos (usar subreporte aquí)]]></text>
+      </staticText>
+    </band>
+  </detail>
+
+</jasperReport>

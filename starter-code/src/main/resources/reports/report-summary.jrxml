@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TAREA: Reemplaza este placeholder con el reporte de resumen ejecutivo.
+
+     Parámetros esperados (todos pasan desde ReportService vía HashMap):
+       - TOTAL_PRODUCTS (Integer): cantidad total de productos
+       - TOTAL_VALUE (BigDecimal): valor total del inventario (suma precio×stock)
+       - MOST_EXPENSIVE_PRODUCT (String): nombre del producto más caro
+       - HIGHEST_PRICE (BigDecimal): precio más alto
+       - HIGHEST_STOCK_PRODUCT (String): nombre del producto con más stock
+       - MAX_STOCK (Integer): máximo stock
+       - REPORT_DATE (java.util.Date): fecha de generación
+
+     Formato esperado:
+     - Una página en formato certificado/resumen ejecutivo
+     - Sección de encabezado con logo (puedes usar un rectángulo de color como placeholder)
+     - Cuerpo con las métricas en formato de tarjetas o tabla de 2 columnas
+     - Pie con fecha y "firma" (texto estático)
+     - No tiene detalle de filas (datasource vacío: JREmptyDataSource)
+-->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports
+                http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="report-summary"
+              pageWidth="595" pageHeight="842"
+              columnWidth="555" leftMargin="20" rightMargin="20"
+              topMargin="20" bottomMargin="20">
+
+  <parameter name="TOTAL_PRODUCTS" class="java.lang.Integer"/>
+  <parameter name="TOTAL_VALUE" class="java.math.BigDecimal"/>
+  <parameter name="MOST_EXPENSIVE_PRODUCT" class="java.lang.String"/>
+  <parameter name="HIGHEST_PRICE" class="java.math.BigDecimal"/>
+  <parameter name="HIGHEST_STOCK_PRODUCT" class="java.lang.String"/>
+  <parameter name="MAX_STOCK" class="java.lang.Integer"/>
+  <parameter name="REPORT_DATE" class="java.util.Date"/>
+
+  <!-- TODO: Diseña el layout del resumen ejecutivo aquí -->
+  <title>
+    <band height="100">
+      <staticText>
+        <reportElement x="0" y="10" width="555" height="40"/>
+        <textElement>
+          <font size="16" isBold="true"/>
+        </textElement>
+        <text><![CDATA[PLACEHOLDER: Reemplaza este template con el diseño real del Resumen Ejecutivo]]></text>
+      </staticText>
+      <textField>
+        <reportElement x="0" y="55" width="555" height="30"/>
+        <textFieldExpression>
+          <![CDATA["Total productos: " + $P{TOTAL_PRODUCTS} + " | Valor total: $" + $P{TOTAL_VALUE}]]>
+        </textFieldExpression>
+      </textField>
+    </band>
+  </title>
+
+  <detail>
+    <band height="0"/>
+  </detail>
+
+</jasperReport>

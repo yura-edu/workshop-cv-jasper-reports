@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TAREA: Reemplaza este placeholder con el reporte de inventario parametrizado.
+
+     Parámetros esperados:
+       - FECHA_DESDE (java.util.Date): filtro de fecha inicio (opcional, null = sin filtro)
+       - FECHA_HASTA (java.util.Date): filtro de fecha fin (opcional, null = sin filtro)
+       - STOCK_MINIMO (Integer): filtro de stock mínimo (0 = sin filtro)
+
+     Campos del datasource (JRBeanCollectionDataSource<Product>):
+       - name (String): nombre del producto
+       - price (BigDecimal): precio unitario
+       - stock (Integer): stock actual
+       - (calculado en template): estado = stock > 0 ? "✓ Disponible" : "✗ Agotado"
+
+     El reporte debe mostrar:
+     - Encabezado con los parámetros aplicados
+     - Tabla: Producto | Precio | Stock | Estado
+     - Pie de página con: total de items y valor total del inventario (suma precio×stock)
+-->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports
+                http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="report-inventory"
+              pageWidth="595" pageHeight="842"
+              columnWidth="555" leftMargin="20" rightMargin="20"
+              topMargin="20" bottomMargin="20">
+
+  <parameter name="FECHA_DESDE" class="java.util.Date"/>
+  <parameter name="FECHA_HASTA" class="java.util.Date"/>
+  <parameter name="STOCK_MINIMO" class="java.lang.Integer">
+    <defaultValueExpression><![CDATA[0]]></defaultValueExpression>
+  </parameter>
+
+  <field name="name" class="java.lang.String"/>
+  <field name="price" class="java.math.BigDecimal"/>
+  <field name="stock" class="java.lang.Integer"/>
+
+  <!-- TODO: Diseña el layout completo aquí -->
+  <title>
+    <band height="60">
+      <staticText>
+        <reportElement x="0" y="10" width="555" height="40"/>
+        <textElement>
+          <font size="16" isBold="true"/>
+        </textElement>
+        <text><![CDATA[PLACEHOLDER: Reemplaza este template con el diseño real del Reporte de Inventario]]></text>
+      </staticText>
+    </band>
+  </title>
+
+  <detail>
+    <band height="20">
+      <textField>
+        <reportElement x="0" y="0" width="200" height="20"/>
+        <textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+      </textField>
+      <textField>
+        <reportElement x="200" y="0" width="100" height="20"/>
+        <textFieldExpression><![CDATA[$F{price}]]></textFieldExpression>
+      </textField>
+      <textField>
+        <reportElement x="300" y="0" width="100" height="20"/>
+        <textFieldExpression><![CDATA[$F{stock}]]></textFieldExpression>
+      </textField>
+    </band>
+  </detail>
+
+</jasperReport>

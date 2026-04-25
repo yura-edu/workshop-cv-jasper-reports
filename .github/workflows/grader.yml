@@ -1,0 +1,264 @@
+name: Grader
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: workshop_db
+          POSTGRES_USER: workshop_user
+          POSTGRES_PASSWORD: workshop_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Initialize database schema and seed
+        run: |
+          PGPASSWORD=workshop_pass psql -h localhost -U workshop_user -d workshop_db \
+            -f starter-code/database/schema.sql
+
+      # ── Métrica: jrxml_count ───────────────────────────────────────────────
+      - name: Count JRXML templates
+        id: jrxml_count
+        run: |
+          COUNT=$(find starter-code/src/main/resources/reports -name "*.jrxml" 2>/dev/null | wc -l | tr -d ' ')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          if [ "$COUNT" -ge 3 ]; then
+            echo "score=1.0"  >> "$GITHUB_OUTPUT"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ JRXML count: $COUNT (threshold: ≥ 3)"
+          else
+            echo "score=0.0"   >> "$GITHUB_OUTPUT"
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "❌ JRXML count: $COUNT (threshold: ≥ 3)"
+          fi
+
+      # ── Métrica: test_pass_rate ────────────────────────────────────────────
+      - name: Run integration tests
+        id: tests
+        working-directory: starter-code
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/workshop_db
+          DB_USER: workshop_user
+          DB_PASS: workshop_pass
+        run: |
+          set +e
+          mvn test -B 2>&1 | tee test-output.txt
+          set -e
+
+          TOTAL=$(grep -oP 'Tests run: \K\d+' test-output.txt | paste -sd+ | bc 2>/dev/null || echo "0")
+          FAILED=$(grep -oP 'Failures: \K\d+' test-output.txt | paste -sd+ | bc 2>/dev/null || echo "0")
+          ERRORS=$(grep -oP 'Errors: \K\d+' test-output.txt | paste -sd+ | bc 2>/dev/null || echo "0")
+
+          if [ "$TOTAL" -gt 0 ]; then
+            BAD=$((FAILED + ERRORS))
+            OK=$((TOTAL - BAD))
+            PASS_RATE=$(echo "scale=2; $OK / $TOTAL" | bc)
+          else
+            PASS_RATE="0.00"
+          fi
+
+          echo "pass_rate=$PASS_RATE" >> "$GITHUB_OUTPUT"
+          if [ "$(echo "$PASS_RATE >= 1.0" | bc -l)" -eq 1 ]; then
+            echo "score=1.0"   >> "$GITHUB_OUTPUT"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Tests pass rate: $PASS_RATE"
+          else
+            echo "score=0.0"    >> "$GITHUB_OUTPUT"
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Tests pass rate: $PASS_RATE (failed=$FAILED, errors=$ERRORS)"
+          fi
+
+      # ── Métrica: exception_handling ────────────────────────────────────────
+      - name: Check exception handling quality
+        id: exception_handling
+        working-directory: starter-code
+        run: |
+          python3 - << 'PYEOF'
+          import os, re, sys
+
+          catch_pattern = re.compile(r'\}\s*catch\s*\(')
+          trivial_pattern = re.compile(
+              r'^\s*(e\.printStackTrace\(\)|//\s*TODO|logger\.warn\(e\.getMessage\(\)\)|}\s*)$'
+          )
+
+          total = 0
+          trivial = 0
+
+          for root, _, files in os.walk('src/main/java'):
+              for f in files:
+                  if not f.endswith('.java'):
+                      continue
+                  path = os.path.join(root, f)
+                  lines = open(path).readlines()
+                  for i, line in enumerate(lines):
+                      if catch_pattern.search(line):
+                          total += 1
+                          # look at next 2 non-blank lines for trivial handling
+                          snippet = ''.join(lines[i+1:i+4])
+                          if trivial_pattern.search(snippet):
+                              trivial += 1
+
+          real = total - trivial
+          ratio = real / total if total > 0 else 1.0
+          passed = ratio >= 0.70
+          score = 1.0 if passed else 0.0
+
+          print(f"Exception handling ratio: {ratio:.2f} ({real}/{total} real catches)")
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"ratio={ratio:.2f}\n")
+              out.write(f"score={score}\n")
+              out.write(f"passed={'true' if passed else 'false'}\n")
+
+          if not passed:
+              print(f"❌ Below threshold (0.70)")
+          else:
+              print(f"✅ Above threshold (0.70)")
+          PYEOF
+
+      # ── Métrica: cyclomatic_complexity ─────────────────────────────────────
+      - name: Check cyclomatic complexity with PMD
+        id: complexity
+        working-directory: starter-code
+        run: |
+          set +e
+          mvn pmd:pmd -B -q 2>/dev/null
+          set -e
+
+          MAX_CC=1
+          if [ -f target/pmd.xml ]; then
+            MAX_CC=$(python3 - << 'PYEOF'
+          import xml.etree.ElementTree as ET, re, sys
+          try:
+              tree = ET.parse('target/pmd.xml')
+              ns = {'pmd': 'http://pmd.sourceforge.net/report/2.0.0'}
+              violations = tree.findall('.//violation[@rule="CyclomaticComplexity"]')
+              if not violations:
+                  violations = tree.findall('.//violation')
+              values = []
+              for v in violations:
+                  msg = (v.text or '') + ' ' + str(v.get('message', ''))
+                  m = re.search(r'complexity of (\d+)', msg)
+                  if m:
+                      values.append(int(m.group(1)))
+              print(max(values) if values else 1)
+          except Exception as e:
+              print(1)
+          PYEOF
+          )
+          fi
+
+          echo "max_cc=$MAX_CC" >> "$GITHUB_OUTPUT"
+          if [ "$MAX_CC" -le 10 ]; then
+            echo "score=1.0"   >> "$GITHUB_OUTPUT"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Max CC: $MAX_CC (threshold: ≤ 10)"
+          else
+            echo "score=0.0"    >> "$GITHUB_OUTPUT"
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Max CC: $MAX_CC (threshold: ≤ 10)"
+          fi
+
+      # ── Métrica: lint_violations ───────────────────────────────────────────
+      - name: Run Checkstyle
+        id: lint
+        working-directory: starter-code
+        run: |
+          set +e
+          mvn checkstyle:check -B 2>&1 | tee checkstyle-output.txt
+          set -e
+
+          VIOLATIONS=$(grep -c "\[ERROR\].*checkstyle" checkstyle-output.txt 2>/dev/null || echo "0")
+          echo "violations=$VIOLATIONS" >> "$GITHUB_OUTPUT"
+          if [ "$VIOLATIONS" -eq 0 ]; then
+            echo "score=1.0"   >> "$GITHUB_OUTPUT"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ No Checkstyle violations"
+          else
+            echo "score=0.0"    >> "$GITHUB_OUTPUT"
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            echo "❌ $VIOLATIONS Checkstyle violation(s)"
+          fi
+
+      # ── Reporte final ──────────────────────────────────────────────────────
+      - name: Build grader report
+        run: |
+          cat > grader-report.json << EOF
+          {
+            "schemaVersion": "1.0",
+            "templateSlug": "cv-jasper-reports",
+            "runId": "${{ github.run_id }}",
+            "sha": "${{ github.sha }}",
+            "metrics": [
+              {
+                "metricKey": "jrxml_count",
+                "score": ${{ steps.jrxml_count.outputs.score }},
+                "passed": ${{ steps.jrxml_count.outputs.passed }},
+                "unavailable": false,
+                "rawValue": ${{ steps.jrxml_count.outputs.count }}
+              },
+              {
+                "metricKey": "exception_handling",
+                "score": ${{ steps.exception_handling.outputs.score }},
+                "passed": ${{ steps.exception_handling.outputs.passed }},
+                "unavailable": false,
+                "rawValue": ${{ steps.exception_handling.outputs.ratio }}
+              },
+              {
+                "metricKey": "test_pass_rate",
+                "score": ${{ steps.tests.outputs.score }},
+                "passed": ${{ steps.tests.outputs.passed }},
+                "unavailable": false,
+                "rawValue": ${{ steps.tests.outputs.pass_rate }}
+              },
+              {
+                "metricKey": "cyclomatic_complexity",
+                "score": ${{ steps.complexity.outputs.score }},
+                "passed": ${{ steps.complexity.outputs.passed }},
+                "unavailable": false,
+                "rawValue": ${{ steps.complexity.outputs.max_cc }}
+              },
+              {
+                "metricKey": "lint_violations",
+                "score": ${{ steps.lint.outputs.score }},
+                "passed": ${{ steps.lint.outputs.passed }},
+                "unavailable": false,
+                "rawValue": ${{ steps.lint.outputs.violations }}
+              }
+            ]
+          }
+          EOF
+          cat grader-report.json
+
+      - name: Upload grader report
+        uses: actions/upload-artifact@v4
+        with:
+          name: grader-report
+          path: grader-report.json
